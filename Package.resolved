@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "DateBuilder",
+        "repositoryURL": "https://github.com/nicephoton/DateBuilder",
+        "state": {
+          "branch": null,
+          "revision": "69e57ecbfcea2ae863e8dd74ead60399321407f5",
+          "version": "0.0.5"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
