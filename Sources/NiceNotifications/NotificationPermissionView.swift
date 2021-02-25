@@ -51,6 +51,13 @@ public class NotificationsPermissionView<Control: UIView>: UIView {
     
     func didLoad<Adapter: NotificationsPermissionViewAdapter>(adapter: Adapter) where Adapter.Control == Control {
         addSubview(control)
+        control.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            control.topAnchor.constraint(equalTo: self.topAnchor),
+            control.leadingAnchor.constraint(equalTo: self.leadingAnchor),
+            control.trailingAnchor.constraint(equalTo: self.trailingAnchor),
+            control.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+        ])
         
         setDisabled()
         adapter.receiveTurnOnAttempted { [weak self] in
