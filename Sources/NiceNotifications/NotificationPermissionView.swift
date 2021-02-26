@@ -77,14 +77,19 @@ public class NotificationsPermissionView<Control: UIView>: UIView {
         }
         
         NotificationCenter.default.addObserver(self,
-            selector: #selector(appWillBecomeActive),
+            selector: #selector(refreshState),
             name: UIApplication.willEnterForegroundNotification,
             object: nil
         )
     }
     
+    public override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        refreshState()
+    }
+    
     @objc
-    private func appWillBecomeActive() {
+    private func refreshState() {
         LocalNotifications.currentAuthorizationStatus(forGroup: group) { (status) in
             self.setEnabled()
             if status.isEnabled {
