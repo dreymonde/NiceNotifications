@@ -144,8 +144,8 @@ public enum LocalNotifications {
     }
     
     @discardableResult
-    public static func schedule(permissionStrategy: PermissionStrategy, group: String? = nil, @ArrayBuilder<LocalNotifications.NotificationRequest> timelineBuilder: () -> [LocalNotifications.NotificationRequest], completion: @escaping (SchedulingResult) -> Void = { _ in }) -> LocalNotificationsGroup {
-        let timeline = NotificationsTimeline(builder: timelineBuilder)
+    public static func schedule(permissionStrategy: PermissionStrategy, group: String? = nil, @TimelineBuilder _ timelineBuilder: () -> [LocalNotifications.NotificationRequest], completion: @escaping (SchedulingResult) -> Void = { _ in }) -> LocalNotificationsGroup {
+        let timeline = NotificationsTimeline(timelineBuilder)
         return self.schedule(timeline: timeline, group: group, permissionStrategy: permissionStrategy, completion: completion)
     }
     
@@ -521,12 +521,8 @@ public struct NotificationsTimeline {
         self.requests = requests
     }
     
-    public init(@ArrayBuilder<LocalNotifications.NotificationRequest> builder: () -> [LocalNotifications.NotificationRequest]) {
+    public init(@TimelineBuilder _ builder: () -> [LocalNotifications.NotificationRequest]) {
         self.requests = builder()
-    }
-    
-    internal init(contentMaker: NotificationContentMaker, @ArrayBuilder<LocalNotifications.NotificationTriggerSet> _ builder: () -> [LocalNotifications.NotificationTriggerSet]) {
-        self.requests = builder().map({ LocalNotifications.NotificationRequest(triggers: $0, contentMaker: contentMaker) })
     }
     
     public init(combining timelines: NotificationsTimeline...) {
@@ -759,10 +755,9 @@ extension DateBuilder.ResolvedDate: NotificationsScheduling {
 }
 
 @_functionBuilder
-public enum ArrayBuilder<Element> {
-    public typealias Expression = Element
-
-    public typealias Component = [Element]
+public enum TimelineBuilder {
+    public typealias Expression = LocalNotifications.NotificationRequest
+    public typealias Component = [LocalNotifications.NotificationRequest]
 
     public static func buildExpression(_ expression: Expression) -> Component {
         [expression]
