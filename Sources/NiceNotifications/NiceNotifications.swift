@@ -102,7 +102,7 @@ public enum LocalNotifications {
             case .deniedNow, .deniedPreviously:
                 completion(.systemDenied)
             case .success:
-                let appAuth = GroupLevelAuthorization.getCurrent(forGroup: group)
+                let appAuth = GroupLevelAuthorization.getCurrent(forGroup: group.groupIdentifier)
                 switch appAuth {
                 case .allowed:
                     completion(.enabled)
@@ -116,47 +116,62 @@ public enum LocalNotifications {
     }
     
     public static func requestPermission(strategy: PermissionStrategy, completion: @escaping (Bool) -> Void = { _ in }) {
-        let mock = AdHocTimelineGroup(timeline: .empty)
-        self._reschedule(group: mock, permissionStrategy: strategy, clearExisting: false, completion: completion)
+        withPermission(strategy: strategy, perform: { }, completion: { completion($0.isAllowed) })
+    }
+    
+    public static func remove(group: LocalNotificationsGroup) {
+        disable(group: group)
     }
     
     public static func disable(group: LocalNotificationsGroup) {
-        GroupLevelAuthorization.setIsAllowed(false, forGroup: group)
+        GroupLevelAuthorization.setIsAllowed(false, forGroup: group.groupIdentifier)
         removeAllPending(withGroup: group.groupIdentifier, completion: { })
     }
     
     @discardableResult
-    static func schedule(content: UNMutableNotificationContent, group: String? = nil, at trigger: DateBuilder.ResolvedDate, permissionStrategy: PermissionStrategy, completion: @escaping (Bool) -> Void = { _ in }) -> LocalNotificationsGroup {
-        let adHoc = AdHocOneOffGroup(
-            triggers: trigger.triggerSet,
-            content: content,
-            groupIdentifier: group ?? "_np_localnotifications_adhoc"
-        )
+    public static func schedule(timeline: NotificationsTimeline, group: String? = nil, permissionStrategy: PermissionStrategy, completion: @escaping (SchedulingResult) -> Void = { _ in }) -> LocalNotificationsGroup {
+        let adHoc = AdHocTimelineGroup(timeline: timeline, groupIdentifier: group)
         self._reschedule(group: adHoc, permissionStrategy: permissionStrategy, clearExisting: false, completion: completion)
         return adHoc
     }
     
     @discardableResult
-    public static func schedule(timeline: NotificationsTimeline, permissionStrategy: PermissionStrategy, completion: @escaping (Bool) -> Void = { _ in }) -> LocalNotificationsGroup {
-        let adHoc = AdHocTimelineGroup(timeline: timeline)
-        self._reschedule(group: adHoc, permissionStrategy: permissionStrategy, clearExisting: false, completion: completion)
-        return adHoc
+    static func schedule(content: UNMutableNotificationContent, at trigger: DateBuilder.ResolvedDate, group: String? = nil, permissionStrategy: PermissionStrategy, completion: @escaping (SchedulingResult) -> Void = { _ in }) -> LocalNotificationsGroup {
+        let timeline = NotificationsTimeline {
+            trigger.schedule(with: { content })
+        }
+        return self.schedule(timeline: timeline, group: group, permissionStrategy: permissionStrategy, completion: completion)
     }
     
     @discardableResult
-    public static func schedule(permissionStrategy: PermissionStrategy, @ArrayBuilder<LocalNotifications.NotificationRequest> timelineBuilder: () -> [LocalNotifications.NotificationRequest], completion: @escaping (Bool) -> Void = { _ in }) -> LocalNotificationsGroup {
+    public static func schedule(permissionStrategy: PermissionStrategy, group: String? = nil, @ArrayBuilder<LocalNotifications.NotificationRequest> timelineBuilder: () -> [LocalNotifications.NotificationRequest], completion: @escaping (SchedulingResult) -> Void = { _ in }) -> LocalNotificationsGroup {
         let timeline = NotificationsTimeline(builder: timelineBuilder)
-        return self.schedule(timeline: timeline, permissionStrategy: permissionStrategy, completion: completion)
+        return self.schedule(timeline: timeline, group: group, permissionStrategy: permissionStrategy, completion: completion)
+    }
+    
+    public static func directSchedule(request: UNNotificationRequest, permissionStrategy: PermissionStrategy, completion: @escaping (SchedulingResult) -> Void = { _ in }) {
+        withPermission(strategy: permissionStrategy) {
+            UNUserNotificationCenter.current().add(request) { (error) in
+                if let error = error {
+                    completion(.systemError(error))
+                } else {
+                    completion(.scheduledSuccesfully)
+                }
+            }
+        } completion: { result in
+            if result.isDenied {
+                completion(result.asSchedulingResult)
+            }
+        }
     }
     
     private final class AdHocTimelineGroup: LocalNotificationsGroup {
         let timeline: NotificationsTimeline
-        var groupIdentifier: String {
-            return "_np_localnotifications_adhoc"
-        }
+        let groupIdentifier: String
         
-        init(timeline: NotificationsTimeline) {
+        init(timeline: NotificationsTimeline, groupIdentifier: String?) {
             self.timeline = timeline
+            self.groupIdentifier = groupIdentifier ?? UUID().uuidString
         }
         
         func getTimeline(completion: @escaping (NotificationsTimeline) -> ()) {
@@ -164,94 +179,120 @@ public enum LocalNotifications {
         }
     }
     
-    private final class AdHocOneOffGroup: LocalNotificationsGroup {
-        let triggers: NotificationTriggerSet
-        let content: UNMutableNotificationContent
-        let groupIdentifier: String
-        
-        init(triggers: NotificationTriggerSet, content: UNMutableNotificationContent, groupIdentifier: String) {
-            self.triggers = triggers
-            self.content = content
-            self.groupIdentifier = groupIdentifier
-        }
-        
-        func getTimeline(completion: @escaping (NotificationsTimeline) -> ()) {
-            let content = self.content
-            let schedule = NotificationsTimeline {
-                triggers.schedule(with: { content })
-            }
-            completion(schedule)
-        }
-    }
-    
     public static func reschedule(group: LocalNotificationsGroup, permissionStrategy: PermissionStrategy, completion: @escaping (Bool) -> Void = { _ in }) {
-        _reschedule(group: group, permissionStrategy: permissionStrategy, clearExisting: true, completion: completion)
+        _reschedule(group: group, permissionStrategy: permissionStrategy, clearExisting: true, completion: { completion($0.isSuccess) })
     }
     
-    private static func _reschedule(group: LocalNotificationsGroup, permissionStrategy: PermissionStrategy, clearExisting: Bool, completion: @escaping (Bool) -> Void) {
+    public static func withPermission(strategy: PermissionStrategy, group: String? = nil, perform: @escaping () -> (), completion: @escaping (_ isAllowed: PermissionResult) -> Void = { _ in }) {
+        executeStrategy(permissionStrategy: strategy, forGroup: group ?? UUID().uuidString) { (result) in
+            if result == .allowed {
+                perform()
+            }
+            completion(result)
+        }
+    }
+    
+    public enum SchedulingResult {
+        case scheduledSuccesfully
+        case systemError(Swift.Error)
+        case deniedOnGroupLevel
+        case deniedOnSystemLevel
+        
+        public var isSuccess: Bool {
+            switch self {
+            case .scheduledSuccesfully:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+    
+    private static func _reschedule(group: LocalNotificationsGroup, permissionStrategy: PermissionStrategy, clearExisting: Bool, completion: @escaping (SchedulingResult) -> Void) {
         assert(!group.groupIdentifier.contains(":"), "colon is reserved by the LocalNotifications framework")
         
         let mainQueueCompletion = { val in
             DispatchQueue.main.async { completion(val) }
         }
         Log.info("EXECUTING AUTH STRATEGY")
-        executeStrategy(permissionStrategy: permissionStrategy, forGroup: group) { (isAllowed) in
-            if isAllowed {
-                Log.info("AUTH ALLOWED: scheduling notifications")
-                
-                let performScheduleInCurrentContext = {
-                    group.getTimeline { (schedule) in
-                        let requests = schedule.requests
-                        for request in requests {
-                            self.scheduleRequest(request, in: group)
-                        }
+        
+        withPermission(strategy: permissionStrategy, group: group.groupIdentifier) {
+            Log.info("AUTH ALLOWED: scheduling notifications")
+            
+            let performScheduleInCurrentContext = {
+                group.getTimeline { (schedule) in
+                    let requests = schedule.requests
+                    for request in requests {
+                        self.scheduleRequest(request, in: group)
                     }
-                    mainQueueCompletion(true)
                 }
-                
-                let performSchedule = group.preferredExecutionContext == .mainQueueOnly
-                    ? { DispatchQueue.main.async(execute: performScheduleInCurrentContext) }
-                    : performScheduleInCurrentContext
-                
-                if clearExisting {
-                    removeAllPending(withGroup: group.groupIdentifier, completion: performSchedule)
-                } else {
-                    performSchedule()
-                }
+                mainQueueCompletion(.scheduledSuccesfully)
+            }
+            
+            let performSchedule = group.preferredExecutionContext == .mainQueueOnly
+                ? { DispatchQueue.main.async(execute: performScheduleInCurrentContext) }
+                : performScheduleInCurrentContext
+            
+            if clearExisting {
+                removeAllPending(withGroup: group.groupIdentifier, completion: performSchedule)
             } else {
+                performSchedule()
+            }
+        } completion: { (result) in
+            if result.isDenied {
                 Log.info("AUTH FAILED: removing all notifications for group \(group.groupIdentifier)")
                 removeAllPending(withGroup: group.groupIdentifier, completion: { })
-                mainQueueCompletion(false)
+                mainQueueCompletion(result.asSchedulingResult)
             }
         }
     }
     
-    private static func executeStrategy(permissionStrategy: PermissionStrategy, forGroup group: LocalNotificationsGroup, completion: @escaping (Bool) -> Void) {
+    public enum PermissionResult {
+        case allowed
+        case deniedOnSystemLevel
+        case deniedOnGroupLevel
+        
+        public var isAllowed: Bool { return self == .allowed }
+        public var isDenied: Bool { !isAllowed }
+        
+        public var asSchedulingResult: SchedulingResult {
+            switch self {
+            case .allowed:
+                return .scheduledSuccesfully
+            case .deniedOnGroupLevel:
+                return .deniedOnGroupLevel
+            case .deniedOnSystemLevel:
+                return .deniedOnSystemLevel
+            }
+        }
+    }
+    
+    private static func executeStrategy(permissionStrategy: PermissionStrategy, forGroup groupIdentifier: String, completion: @escaping (PermissionResult) -> Void) {
         Log.info("EXECUTING CATEGORY APP STRATEGY")
-        executeGroupStrategy(groupStrategy: permissionStrategy.groupLevel, forGroup: group) { (isGranted) in
+        executeGroupStrategy(groupStrategy: permissionStrategy.groupLevel, forGroup: groupIdentifier) { (isGranted) in
             if isGranted {
                 Log.info("CATEGORY APP STRATEGY: granted - moving on to system strategy")
                 Log.info("EXECUTING SYSTEM STRATEGY")
                 executeSystemStrategy(systemStrategy: permissionStrategy.systemLevel, completion: { isSystemGranted in
                     Log.info("SYSTEM STRATEGY: isGranted - \(isSystemGranted); completing")
-                    completion(isSystemGranted)
+                    completion(isSystemGranted ? .allowed : .deniedOnSystemLevel)
                 })
             } else {
                 Log.info("CATEGORY APP STRATEGY: denied - completing")
-                completion(false)
+                completion(.deniedOnGroupLevel)
             }
         }
     }
     
-    private static func executeGroupStrategy(groupStrategy: PermissionStrategy.GroupLevel, forGroup group: LocalNotificationsGroup, completion: @escaping (Bool) -> Void) {
+    private static func executeGroupStrategy(groupStrategy: PermissionStrategy.GroupLevel, forGroup groupIdentifier: String, completion: @escaping (Bool) -> Void) {
         switch groupStrategy {
         case .allowAutomatically:
             Log.info("CATEGORY APP STRATEGY: allowAutomatically, setting as allowed and completing")
-            GroupLevelAuthorization.setIsAllowed(true, forGroup: group)
+            GroupLevelAuthorization.setIsAllowed(true, forGroup: groupIdentifier)
             completion(true)
         case .askPermission(let mode, let permissionAsker):
             Log.info("CATEGORY APP STRATEGY: askPermission, checking if need to ask with mode: \(mode)")
-            let modeResult = executeApplicationAskPermissionMode(mode: mode, forGroup: group)
+            let modeResult = executeApplicationAskPermissionMode(mode: mode, forGroup: groupIdentifier)
             switch modeResult {
             case .shouldAskPermission:
                 Log.info("CATEGORY APP STRATEGY: mode \(mode) decided that should ask permission, asking")
@@ -263,7 +304,7 @@ public enum LocalNotifications {
                         completion(false)
                     case .success(let isGranted):
                         Log.info("CATEGORY APP STRATEGY: askPermission, completed with isGranted: \(isGranted); setting and completing")
-                        GroupLevelAuthorization.setIsAllowed(isGranted, forGroup: group)
+                        GroupLevelAuthorization.setIsAllowed(isGranted, forGroup: groupIdentifier)
                         completion(isGranted)
                     }
                 }
@@ -273,12 +314,12 @@ public enum LocalNotifications {
             }
         case .ifAlreadyAllowed:
             let isAllowedAlready = GroupLevelAuthorization
-                .getCurrent(forGroup: group).isAllowed
+                .getCurrent(forGroup: groupIdentifier).isAllowed
             Log.info("CATEGORY APP STRATEGY: ifAlreadyAllowed, isAllowed: \(isAllowedAlready); completing")
             completion(isAllowedAlready)
         case .ifAllowed(other: let otherGroup):
             let isAllowedAlready = GroupLevelAuthorization
-                .getCurrent(forGroup: otherGroup).isAllowed
+                .getCurrent(forGroup: otherGroup.groupIdentifier).isAllowed
             Log.info("CATEGORY APP STRATEGY: ifAllowed for other group: \(otherGroup.groupIdentifier), isAllowed: \(isAllowedAlready); completing")
             completion(isAllowedAlready)
         case .bypass:
@@ -291,8 +332,8 @@ public enum LocalNotifications {
         case shouldComplete(Bool)
     }
     
-    private static func executeApplicationAskPermissionMode(mode: PermissionStrategy.GroupLevel.AskPermissionMode, forGroup group: LocalNotificationsGroup) -> AskPermissionResult {
-        let status = GroupLevelAuthorization.getCurrent(forGroup: group)
+    private static func executeApplicationAskPermissionMode(mode: PermissionStrategy.GroupLevel.AskPermissionMode, forGroup groupIdentifier: String) -> AskPermissionResult {
+        let status = GroupLevelAuthorization.getCurrent(forGroup: groupIdentifier)
         switch status {
         case .notAsked:
             return .shouldAskPermission
@@ -371,8 +412,8 @@ extension LocalNotifications {
             }
         }
                 
-        public static func _userDefaultsKey(forGroup group: LocalNotificationsGroup) -> String {
-            return "___np_local_notifications_app_permission_group:\(group.groupIdentifier)"
+        public static func _userDefaultsKey(forGroup groupIdentifier: String) -> String {
+            return "___np_local_notifications_app_permission_group:\(groupIdentifier)"
         }
         
         public enum Status {
@@ -385,8 +426,8 @@ extension LocalNotifications {
             }
         }
         
-        public static func getCurrent(forGroup group: LocalNotificationsGroup) -> Status {
-            let key = Self._userDefaultsKey(forGroup: group)
+        public static func getCurrent(forGroup groupIdentifier: String) -> Status {
+            let key = Self._userDefaultsKey(forGroup: groupIdentifier)
             if let existingIsAlreadyAllowed = Env.valueForKey(key) as? Bool {
                 return existingIsAlreadyAllowed ? .allowed : .denied
             } else {
@@ -394,9 +435,9 @@ extension LocalNotifications {
             }
         }
         
-        public static func setIsAllowed(_ isAllowed: Bool, forGroup group: LocalNotificationsGroup) {
-            Log.info("group \(group.groupIdentifier): auth updated to isAllowed - \(isAllowed)")
-            Env.setValue(isAllowed, Self._userDefaultsKey(forGroup: group))
+        public static func setIsAllowed(_ isAllowed: Bool, forGroup groupIdentifier: String) {
+            Log.info("group \(groupIdentifier): auth updated to isAllowed - \(isAllowed)")
+            Env.setValue(isAllowed, Self._userDefaultsKey(forGroup: groupIdentifier))
         }
     }
 }

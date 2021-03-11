@@ -5,6 +5,7 @@
 //  Created by Oleg Dreyman on 2/24/21.
 //
 
+#if canImport(UIKit)
 import UIKit
 
 public class NotificationsPermissionView<Control: UIView>: UIView {
@@ -133,6 +134,8 @@ public class NotificationsPermissionView<Control: UIView>: UIView {
     }
 }
 
+public typealias NotificationsPermissionSwitch = NotificationsPermissionView<UISwitch>
+
 extension NotificationsPermissionView where Control == UISwitch {
     public convenience init(group: LocalNotificationsGroup) {
         let uiswitch = UISwitch()
@@ -162,10 +165,6 @@ final class __UISwitchAdapter: NSObject, NotificationsPermissionViewAdapter {
     
     init(control: UISwitch) {
         self.control = control
-    }
-    
-    deinit {
-        print("deinit adapter")
     }
     
     var turnOn: () -> () = { }
@@ -206,3 +205,4 @@ final class __UISwitchAdapter: NSObject, NotificationsPermissionViewAdapter {
         }
     }
 }
+#endif
