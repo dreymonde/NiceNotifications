@@ -12,3 +12,12 @@ final class NiceNotificationsTests: XCTestCase {
         ("testExample", testExample),
     ]
 }
+
+func readme() {
+LocalNotifications.schedule(permissionStrategy: .askSystemPermissionIfNeeded) {
+    EveryMonth(forMonths: 12, starting: .thisMonth)
+        .first(.friday)
+        .at(hour: 20, minute: 15)
+        .schedule(title: "First Friday", body: "Oakland let's go!")
+}
+}
