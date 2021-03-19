@@ -81,6 +81,14 @@ extension LocalNotifications {
 }
 
 public enum LocalNotifications {
+    
+    public enum Env {
+        public static var addNotificationRequest = UNUserNotificationCenter.current().add
+        public static var removeDeliveredNotifications = UNUserNotificationCenter.current().removeDeliveredNotifications
+        public static var removePendingNotificationRequests = UNUserNotificationCenter.current().removePendingNotificationRequests
+        public static var getPendingNotificationRequests = UNUserNotificationCenter.current().getPendingNotificationRequests
+    }
+    
     public enum FinalAuthorizationStatus {
         case enabled
         case disabled
@@ -119,6 +127,7 @@ public enum LocalNotifications {
         withPermission(strategy: strategy, perform: { }, completion: { completion($0.isAllowed) })
     }
     
+    /// Identical to `disable(group:)`
     public static func remove(group: LocalNotificationsGroup) {
         disable(group: group)
     }
@@ -151,7 +160,7 @@ public enum LocalNotifications {
     
     public static func directSchedule(request: UNNotificationRequest, permissionStrategy: PermissionStrategy, completion: @escaping (SchedulingResult) -> Void = { _ in }) {
         withPermission(strategy: permissionStrategy) {
-            UNUserNotificationCenter.current().add(request) { (error) in
+            Env.addNotificationRequest(request) { (error) in
                 if let error = error {
                     completion(.systemError(error))
                 } else {
@@ -375,23 +384,23 @@ public enum LocalNotifications {
                         content: content,
                         trigger: trigger.rawTrigger
                     )
-                    UNUserNotificationCenter.current().add(request) { (error) in
+                    Env.addNotificationRequest(request) { (error) in
                         Log.info("SCHEDULED \(request.identifier), \(error as Any)")
                     }
                 } else {
-                    UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [trigger.identifier.rawValue])
-                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [trigger.identifier.rawValue])
+                    Env.removeDeliveredNotifications([trigger.identifier.rawValue])
+                    Env.removePendingNotificationRequests([trigger.identifier.rawValue])
                 }
             }
         }
     }
     
     private static func removeAllPending(withGroup groupIdentifier: String, completion: @escaping () -> ()) {
-        UNUserNotificationCenter.current().getPendingNotificationRequests { (requests) in
+        Env.getPendingNotificationRequests { (requests) in
             let inCategory = requests
                 .filter { $0.identifier.starts(with: groupIdentifier + ":") }
                 .map(\.identifier)
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: inCategory)
+            Env.removePendingNotificationRequests(inCategory)
             Log.info("removed all notifications for group \(groupIdentifier), in total \(inCategory.count) requests")
             completion()
         }
@@ -402,7 +411,7 @@ extension LocalNotifications {
     
     public enum GroupLevelAuthorization {
         
-        public struct Env {
+        public enum Env {
             public static var valueForKey = UserDefaults.standard.value(forKey:)
             public static var setValue = UserDefaults.standard.setValue(_:forKey:)
             
@@ -446,7 +455,7 @@ extension LocalNotifications {
     
     public enum SystemAuthorization {
         
-        public struct Env {
+        public enum Env {
             public static var getNotificationSettings = UNUserNotificationCenter.current().getNotificationSettings
             public static var requestAuthorization = UNUserNotificationCenter.current().requestAuthorization
         }
