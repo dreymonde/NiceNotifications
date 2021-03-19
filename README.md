@@ -4,7 +4,9 @@
 
 > **[Nice Photon](https://nicephoton.com) is available for hire!** Talk to us if you have any iOS app development needs. We have 10+ years of experience making iOS apps for top Silicon Valley companies. Reach out at [hi@nicephoton.com](mailto:hi@nicephoton.com)
 
-**NiceNotifications**
+**NiceNotifications** reimagines local notifications on Apple platforms.
+
+It gives 
 
 Built at **[Nice Photon](https://nicephoton.com)**.  
 Maintainer: [@dreymonde](https://github.com/dreymonde)
