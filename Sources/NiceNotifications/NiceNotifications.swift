@@ -44,12 +44,12 @@ extension LocalNotifications {
             }
         }
         
-        public static let askPermissionIfNeeded = PermissionStrategy(
+        public static let askSystemPermissionIfNeeded = PermissionStrategy(
             groupLevel: .bypass,
             systemLevel: .askPermission
         )
         
-        public static let scheduleIfAlreadyAllowed = PermissionStrategy(
+        public static let scheduleIfSystemAllowed = PermissionStrategy(
             groupLevel: .bypass,
             systemLevel: .ifAlreadyAllowed
         )
@@ -815,10 +815,6 @@ public extension LocalNotifications.ApplicationLevelPermissionAsker {
     /// en-US only
     static func defaultAlert(on vc: UIViewController) -> LocalNotifications.ApplicationLevelPermissionAsker {
         return alert(on: vc, title: "We'd like to send you notifications", message: "Notifications may include alerts, sounds and icon badges. These can be configured in Settings.", noActionTitle: "Not Now", yesActionTitle: "OK")
-    }
-    
-    static func _basicAlert(on vc: UIViewController) -> LocalNotifications.ApplicationLevelPermissionAsker {
-        return alert(on: vc, title: "test: Do you allow this group?", message: nil, noActionTitle: "No", yesActionTitle: "Yes")
     }
 }
 #endif
