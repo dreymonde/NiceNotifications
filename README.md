@@ -229,6 +229,12 @@ LocalNotifications.directSchedule(
 1. Click File &rarr; Swift Packages &rarr; Add Package Dependency.
 2. Enter `http://github.com/nicephoton/NiceNotifications.git`
 
+## Apps that use NiceNotifications
+
+1. [Ask Yourself Everyday](https://apps.apple.com/app/apple-store/id1531322948?mt=8&platform=iphone)
+2. [Time and Again: Track Routines](https://apps.apple.com/app/apple-store/id1229632235?mt=8&ref=github)
+3. Submit yours by opening a PR!
+
 ## Acknowledgments
 
 Built at **[Nice Photon](https://nicephoton.com)**
