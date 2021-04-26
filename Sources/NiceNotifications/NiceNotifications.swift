@@ -109,7 +109,7 @@ public enum LocalNotifications {
             switch status {
             case .deniedNow, .deniedPreviously:
                 completion(.systemDenied)
-            case .success:
+            case .allowed:
                 let appAuth = GroupLevelAuthorization.getCurrent(forGroup: group.groupIdentifier)
                 switch appAuth {
                 case .allowed:
@@ -461,13 +461,13 @@ extension LocalNotifications {
         }
         
         public enum Status {
-            case success
+            case allowed
             case deniedPreviously
             case deniedNow
             case undetermined
             
             public var isAllowed: Bool {
-                return self == .success
+                return self == .allowed
             }
         }
         
@@ -475,7 +475,7 @@ extension LocalNotifications {
             Env.getNotificationSettings { (settings) in
                 switch settings.authorizationStatus {
                 case .authorized:
-                    completion(.success)
+                    completion(.allowed)
                 case .denied:
                     completion(.deniedPreviously)
                 case .ephemeral, .notDetermined, .provisional:
@@ -494,7 +494,7 @@ extension LocalNotifications {
                         if let error = error {
                             completion(.failure(error))
                         } else {
-                            completion(.success(isSuccess ? .success : .deniedNow))
+                            completion(.success(isSuccess ? .allowed : .deniedNow))
                         }
                     }
                 case .denied:
@@ -630,17 +630,6 @@ extension LocalNotifications {
         public static func makeRandom() -> NotificationContentIdentifier {
             return .init(rawValue: UUID().uuidString)
         }
-        
-        @available(*, deprecated)
-        static func dateComponents(components: DateComponents) -> NotificationContentIdentifier {
-            let raw = "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)-\(components.hour ?? 0)-\(components.minute ?? 0)-\(components.second ?? 0)-auto"
-            return .init(rawValue: raw)
-        }
-        
-        @available(*, deprecated)
-        static func exactDate(_ date: Date) -> NotificationContentIdentifier {
-            return .init(rawValue: "\(date.timeIntervalSinceReferenceDate)-auto")
-        }
     }
 }
 
@@ -666,6 +655,11 @@ extension NotificationsScheduling {
 }
 
 public extension NotificationsScheduling {
+    func schedule(title: String? = nil, subtitle: String? = nil, body: String? = nil, sound: UNNotificationSound? = .default) -> LocalNotifications.NotificationRequest {
+        let content = NotificationContent(title: title, subtitle: subtitle, body: body, sound: sound)
+        return self.schedule(with: content)
+    }
+    
     func schedule(with maker: @escaping () -> UNMutableNotificationContent?) -> LocalNotifications.NotificationRequest {
         return self.schedule(with: .sync({ _ in maker() }))
     }
@@ -692,13 +686,8 @@ public extension NotificationsScheduling {
         return self.schedule(with: .async({ _, completion in asyncMaker(completion) }))
     }
     
-    func schedule(content: @escaping @autoclosure () -> NotificationContent?) -> LocalNotifications.NotificationRequest {
+    func schedule(with content: @escaping @autoclosure () -> UNMutableNotificationContent?) -> LocalNotifications.NotificationRequest {
         return self.schedule(with: .sync({ _ in content() }))
-    }
-    
-    func schedule(title: String? = nil, subtitle: String? = nil, body: String? = nil, sound: UNNotificationSound? = .default) -> LocalNotifications.NotificationRequest {
-        let content = NotificationContent(title: title, subtitle: subtitle, body: body, sound: sound)
-        return self.schedule(content: content)
     }
 }
 
