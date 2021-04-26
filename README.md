@@ -219,6 +219,10 @@ LocalNotifications.directSchedule(
 ) // completion is optional
 ```
 
+## Advanced Guide
+
+(Coming Soon.)
+
 ## Installation
 
 ### Swift Package Manager
