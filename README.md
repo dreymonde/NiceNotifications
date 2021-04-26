@@ -15,7 +15,7 @@ At its most advanced, it introduces a whole new way of looking at local notifica
 Built at **[Nice Photon](https://nicephoton.com)**.  
 Maintainer: [@dreymonde](https://github.com/dreymonde)
 
-As of now, **NiceNotifications** is in early beta. Some APIs is likely to change between releases. Breaking changes are to be expected. Feedback on the API is very welcome!
+> **WARNING!** As of now, **NiceNotifications** is in early beta. Some APIs is likely to change between releases. Breaking changes are to be expected. Feedback on the API is very welcome!
 
 ## Usage
 
