@@ -17,7 +17,7 @@ Maintainer: [@dreymonde](https://github.com/dreymonde)
 
 > **WARNING!** As of now, **NiceNotifications** is in early beta. Some APIs is likely to change between releases. Breaking changes are to be expected. Feedback on the API is very welcome!
 
-## Usage
+## Showcase
 
 ```swift
 import NiceNotifications
@@ -29,6 +29,12 @@ LocalNotifications.schedule(permissionStrategy: .askSystemPermissionIfNeeded) {
         .schedule(title: "First Friday", body: "Oakland let's go!")
 }
 ```
+
+## Installation
+
+### Swift Package Manager
+1. Click File &rarr; Swift Packages &rarr; Add Package Dependency.
+2. Enter `http://github.com/nicephoton/NiceNotifications.git`
 
 ## Basics Guide
 
@@ -503,12 +509,6 @@ final class DailyQuoteGroup: LocalNotificationsGroup {
     }
 }
 ```
-
-## Installation
-
-### Swift Package Manager
-1. Click File &rarr; Swift Packages &rarr; Add Package Dependency.
-2. Enter `http://github.com/nicephoton/NiceNotifications.git`
 
 ## Apps that use NiceNotifications
 
