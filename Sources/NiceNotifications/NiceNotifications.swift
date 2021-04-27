@@ -11,7 +11,7 @@ import UserNotifications
 
 extension LocalNotifications {
     public enum Log {
-        public static var info = { print($0) }
+        public static var info: (Any) -> () = { _ in }
     }
 }
 

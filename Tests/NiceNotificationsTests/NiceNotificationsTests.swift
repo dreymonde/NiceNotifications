@@ -13,7 +13,67 @@ final class NiceNotificationsTests: XCTestCase {
     ]
 }
 
+enum QuoteStore {
+    static var allQuotes: [String] = []
+    static func removeQuote(_ quote: String) { }
+
+    static func fetchRandom(_ completion: @escaping (String) -> ()) {
+
+    }
+}
+
+final class DailyQuoteGroup: LocalNotificationsGroup {
+    let groupIdentifier: String = "dailyQuote"
+
+    var preferredExecutionContext: LocalNotificationsGroupContextPreference {
+        return .canRunOnAnyQueue
+    }
+
+    func getTimeline(completion: @escaping (NotificationsTimeline) -> ()) {
+        let timeline = NotificationsTimeline {
+            EveryDay(forDays: 50, starting: .today)
+                .at(hour: 9, minute: 00)
+                .schedule(with: makeRandomQuoteContent(completion:))
+        }
+        completion(timeline)
+    }
+
+    private func makeRandomQuoteContent(completion: @escaping (NotificationContent) -> ()) {
+        QuoteStore.fetchRandom { (quote) in
+            let content = NotificationContent(
+                title: quote,
+                body: "Open app for more quotes",
+                sound: .default
+            )
+            completion(content)
+        }
+    }
+}
+
+func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+
+    LocalNotifications.reschedule(
+        group: DailyQuoteGroup(),
+        permissionStrategy: .scheduleIfSystemAllowed
+    )
+
+    return true
+}
+
 func readme() {
+
+//let toggle = NotificationsPermissionSwitch(group: DailyQuoteGroup())
+
+    LocalNotifications.disable(group: DailyQuoteGroup())
+
+    let userDisabledQuote = ""
+QuoteStore.removeQuote(userDisabledQuote)
+
+LocalNotifications.reschedule(
+    group: DailyQuoteGroup(),
+    permissionStrategy: .scheduleIfSystemAllowed
+)
+
 LocalNotifications.schedule(permissionStrategy: .askSystemPermissionIfNeeded) {
     EveryMonth(forMonths: 12, starting: .thisMonth)
         .first(.friday)

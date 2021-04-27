@@ -221,7 +221,288 @@ LocalNotifications.directSchedule(
 
 ## Advanced Guide
 
-(Coming Soon.)
+### Notification Timelines
+
+The most powerful feature of **NiceNotifications** is *timelines* within *notification groups*, which lets you describe your entire local notifications experience in a WidgetKit-like manner.
+
+#### Case study: "Daily Quote" notifications
+
+Let's say we have an app that shows a different quote from a list every morning. The user can also disable / enable certain quotes, or add their own.
+
+For that, we need to define a new class that implements `LocalNotificationsGroup` protocol:
+
+```swift
+public protocol LocalNotificationsGroup {
+    var groupIdentifier: String { get }    
+    func getTimeline(completion: @escaping (NotificationsTimeline) -> ())
+}
+```
+
+Groups not only allow you to have clear logical separation between different experiences, but to also have user permission on a per group basis (we'll get to that later).
+
+Let's implement our `DailyQuoteGroup`:
+
+```swift
+final class DailyQuoteGroup: LocalNotificationsGroup {
+    let groupIdentifier: String = "dailyQuote"
+
+    func getTimeline(completion: @escaping (NotificationsTimeline) -> ()) {
+        let timeline = NotificationsTimeline {
+            EveryDay(forDays: 50, starting: .today)
+                .at(hour: 9, minute: 00)
+                .schedule(title: "Storms make oaks take deeper root.")
+        }
+        completion(timeline)
+    }
+}
+```
+
+But this will only give us 50 identical quotes for the next 50 days. Let's make it more interesting by giving a user an actual random quote each day:
+
+```swift
+final class DailyQuoteGroup: LocalNotificationsGroup {
+    let groupIdentifier: String = "dailyQuote"
+
+    func getTimeline(completion: @escaping (NotificationsTimeline) -> ()) {
+        let timeline = NotificationsTimeline {
+            EveryDay(forDays: 50, starting: .today)
+                .at(hour: 9, minute: 00)
+                .schedule(with: makeRandomQuoteContent)
+        }
+        completion(timeline)
+    }
+
+    private func makeRandomQuoteContent() -> NotificationContent? {
+        guard let randomQuote = QuoteStore.enabledQuotes.randomElement() else {
+            return nil
+        }
+
+        return NotificationContent(
+            title: randomQuote,
+            body: "Tap here for more daily inspiration"
+        )
+    }
+}
+```
+
+Looks great! Every time `makeRandomQuoteContent` gets invoked, we'll get a different quote, which is exactly what we want.
+
+Okay, so what do we do with it now?
+
+#### "Rescheduling" notification groups
+
+Scheduling notification groups is easy:
+
+```swift
+LocalNotifications.reschedule(
+    group: DailyQuoteGroup(),
+    permissionStrategy: .askSystemPermissionIfNeeded
+) // completion is optional
+```
+
+Why is it called "reschedule"? Because every time we inkove this function with the same group, the whole timeline will be cleaned and recreated.
+
+Why is it useful? First of all, let's say that the user has disabled one of the quotes from showing up. But it might've been already scheduled! Not a problem: we'll simply call reschedule again, and it will no longer show up:
+
+```swift
+QuoteStore.disableQuote(userDisabledQuote)
+
+LocalNotifications.reschedule(
+    group: DailyQuoteGroup(),
+    permissionStrategy: .scheduleIfSystemAllowed
+)
+```
+
+Since `DailyQuoteGroup` uses `QuoteStore.enabledQuotes` to generate a random quote, newly rescheduled group will not have a disabled quote anymore!
+
+Secondly, you've noticed that we've only scheduled for 50 days since "today". This is because we cannot use system recurring notifications (since that only allows us to have the same content for each notification), and iOS only allows us no more than 64 scheduled notifications at once.
+
+So yes, it will require us to periodically reschedule the group to "reset" the 50 days. One of the best places for that is `applicationDidFinishLaunchingWithOptions`:
+
+```swift
+func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+    LocalNotifications.reschedule(
+        group: DailyQuoteGroup(),
+        permissionStrategy: .scheduleIfSystemAllowed
+    )
+
+    return true
+}
+```
+
+Alternatively, you can schedule background execution tasks to periodically refresh notifications.
+
+### Group-level permissions
+
+Permission Strategy has two different levels:
+
+- System level: basically if user allowed the app to send notifications. This is the regular "App X wants to send notifications" permission.
+- Group level: this relates to whether the user has enabled a certain group. For example, user can opt in to receive a quote every evening, but not receive one in the morning.
+
+Here's how to make your own custom permission strategy:
+
+```swift
+LocalNotifications.PermissionStrategy(
+    groupLevel: PermissionStrategy.GroupLevel,
+    systemLevel: PermissionStrategy.SystemLevel
+)
+```
+
+Permission strategy will always execute group level strategy first, and if succesfull, will proceed to system level.
+
+#### Group Level
+
+##### `.bypass`:
+
+Will skip group level permission check and go straight to system level. This will not change existing group-level permission, if present.
+
+##### `.allowAutomatically`:
+
+Will enable permission on a group level and will save that decision, and will then proceed to system level check.
+
+If the user previously disabled / denied this group permission, `.allowAutomatically` will overwrite that decision.
+
+##### `.askPermission(AskPermissionMode, PermissionAsker)`: 
+
+Will ask user's permission before proceeding to system level check, and will save that decission. Will only ask permission if the permission was not given before, otherwise will proceed straight to system level check.
+
+**AskPermissionMode**:
+
+- `.once`: will only ask for permission once. If the user has denied this group, any subsequent call will not ask for permission, and will not schedule notifications
+- `.alwaysIfNotAllowed`: will always ask for permission if it was not already given
+
+**PermissionAsker**:
+
+This class is responsible for asking group-level permission. You can use `.defaultAlert(on:)` to show a pre-made alert (English only), use `.alert(on:title:message:noActionTitle:yesActionTitle:)`, or create your own:
+
+```swift
+let permissionAsker = LocalNotifications.ApplicationLevelPermissionAsker { (completion) in
+    // ask permission, then call completion with Result<Bool, Error>
+}
+```
+
+##### `.ifAlreadyAllowed`:
+
+Will proceed to system level check only if the category was allowed before
+
+##### `.ifAllowed(other:)`:
+
+Will proceed to system level check only if the *other* specified category is allowed
+
+#### System Level
+
+##### `.askPermission`:
+
+Will ask system notification permission if neccessary
+
+##### `.ifAlreadyAllowed`:
+
+Will only proceed to schedule notifications if already allowed by the system; otherwise will not proceed
+
+### Notification Permission Switch
+
+For `UIKit`, **NiceNotifications** provides `NotificationsPermissionSwitch`, a custom `UIView` that shows and allows to modify group-level permission for a notification group
+
+```swift
+let toggle = NotificationsPermissionSwitch(group: DailyQuoteGroup())
+toggle.onEnabled = { _ in ... }
+toggle.onDisabled = { _ in ... }
+toggle.onDeniedBySystem = { _ in /* show "Open Settings" alert to user */ }
+```
+
+This saves you a lot of complexity that you usually need to implement yourself.
+
+In case you want to show your own pre-permission when user tries to enable the category, you can use `.permissionAsker` property:
+
+```swift
+// make sure to not introduce retain cycles here
+toggle.permissionAsker = { .defaultAlert(on: viewController) }
+```
+
+If you want to use any other control instead of a system `UISwitch`, you can write your own adapter for `NotificationPermissionView`. For reference, see `__UISwitchAdapter` in `NotificationsPermissionView.swift`.
+
+### Disabling a notification group
+
+Disabling a group will remove all pending notifications, as well as prevent new reschedulings until the permission is given again:
+
+```swift
+LocalNotifications.disable(group: DailyQuoteGroup())
+```
+
+### Getting group-level authorization information
+
+```swift
+let status = LocalNotifications.GroupLevelAuthorization.getCurrent(forGroup: DailyQuoteGroup().groupIdentifier)
+
+switch status {
+case .allowed: /* ... */
+case .denied: /* ... */
+case .notAsked: /* ... */
+}
+```
+
+## Performance Improvements
+
+### 1. Generating content asynchronously
+
+`NotificationsTimeline` allows content to be created asynchronously, using one of available `schedule(with:)` overloads:
+
+```swift
+final class DailyQuoteGroup: LocalNotificationsGroup {
+    let groupIdentifier: String = "dailyQuote"
+
+    func getTimeline(completion: @escaping (NotificationsTimeline) -> ()) {
+        let timeline = NotificationsTimeline {
+            EveryDay(forDays: 50, starting: .today)
+                .at(hour: 9, minute: 00)
+                .schedule(with: makeRandomQuoteContent(completion:))
+        }
+        completion(timeline)
+    }
+
+    private func makeRandomQuoteContent(completion: @escaping (NotificationContent) -> ()) {
+        QuoteStore.fetchRandom { (quote) in
+            let content = NotificationContent(
+                title: quote,
+                body: "Open app for more quotes",
+                sound: .default
+            )
+            completion(content)
+        }
+    }
+}
+```
+
+Other available `.schedule` overloads:
+
+```swift
+.schedule(title: String? = nil, subtitle: String? = nil, body: String? = nil, sound: UNNotificationSound? = .default)
+.schedule(with maker: @escaping () -> UNMutableNotificationContent?)
+.schedule(with maker: @escaping (LocalNotifications.Trigger) -> UNMutableNotificationContent?)
+.schedule(with maker: @escaping (_ nextTriggerDate: Date) -> UNMutableNotificationContent?)
+.schedule(with asyncMaker: @escaping (_ trigger: LocalNotifications.Trigger, _ completion: @escaping (UNMutableNotificationContent?) -> Void) -> Void)
+.schedule(with asyncMaker: @escaping (_ nextTriggerDate: Date, _ completion: @escaping (UNMutableNotificationContent?) -> Void) -> Void)
+.schedule(with asyncMaker: @escaping (_ completion: @escaping (UNMutableNotificationContent?) -> Void) -> Void)
+.schedule(with content: @autoclosure @escaping () -> UNMutableNotificationContent?)
+```
+
+### 2. Creating timeline on background queue
+
+By default, `getTimeline` will always be called on a main thread. If your app logic allows `getTimeline` to be called on a background queue, set `preferredExecutionContext` to `.canRunOnAnyQueue`:
+
+```swift
+final class DailyQuoteGroup: LocalNotificationsGroup {
+    let groupIdentifier: String = "dailyQuote"
+
+    var preferredExecutionContext: LocalNotificationsGroupContextPreference {
+        return .canRunOnAnyQueue
+    }
+
+    func getTimeline(completion: @escaping (NotificationsTimeline) -> ()) {
+        ...
+    }
+}
+```
 
 ## Installation
 

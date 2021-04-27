@@ -20,9 +20,9 @@ public class NotificationsPermissionView<Control: UIView>: UIView {
         }
     }
     
-    public var didEnable: (NotificationsPermissionView<Control>) -> Void = { _ in }
-    public var didDisable: (NotificationsPermissionView<Control>) -> Void = { _ in }
-    public var didDeniedBySystem: (NotificationsPermissionView<Control>) -> Void = { _ in }
+    public var onEnabled: (NotificationsPermissionView<Control>) -> Void = { _ in }
+    public var onDisabled: (NotificationsPermissionView<Control>) -> Void = { _ in }
+    public var onDeniedBySystem: (NotificationsPermissionView<Control>) -> Void = { _ in }
     
     let setOn: () -> ()
     let setOff: () -> ()
@@ -113,7 +113,7 @@ public class NotificationsPermissionView<Control: UIView>: UIView {
                     self.setOff()
                     self.checkStatusAfterCantEnable()
                 } else {
-                    self.didEnable(self)
+                    self.onEnabled(self)
                 }
             }
         )
@@ -121,13 +121,13 @@ public class NotificationsPermissionView<Control: UIView>: UIView {
     
     private func didAttemptToTurnOff() {
         LocalNotifications.disable(group: group)
-        self.didDisable(self)
+        self.onDisabled(self)
     }
     
     private func checkStatusAfterCantEnable() {
         LocalNotifications.currentAuthorizationStatus(forGroup: group) { (status) in
             if status == .systemDenied {
-                self.didDeniedBySystem(self)
+                self.onDeniedBySystem(self)
                 // show "go to settings popup"
             }
         }
