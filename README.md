@@ -13,7 +13,7 @@ At its most basic form, it helps to schedule local notifications easily, in a de
 At its most advanced, it introduces a whole new way of looking at local notifications, with the concept of "Notification Timelines", similar to `WidgetKit` or `ClockKit` APIs.
 
 Built at **[Nice Photon](https://nicephoton.com)**.  
-Maintainer: [@dreymonde](https://github.com/dreymonde)
+Author & maintainer: [@dreymonde](https://github.com/dreymonde)
 
 > **WARNING!** As of now, **NiceNotifications** is in early beta. Some APIs is likely to change between releases. Breaking changes are to be expected. Feedback on the API is very welcome!
 
