@@ -87,6 +87,7 @@ public enum LocalNotifications {
         public static var removeDeliveredNotifications = UNUserNotificationCenter.current().removeDeliveredNotifications
         public static var removePendingNotificationRequests = UNUserNotificationCenter.current().removePendingNotificationRequests
         public static var getPendingNotificationRequests = UNUserNotificationCenter.current().getPendingNotificationRequests
+        public static var getDeliveredNotifications = UNUserNotificationCenter.current().getDeliveredNotifications
     }
     
     public enum FinalAuthorizationStatus {
@@ -252,6 +253,22 @@ public enum LocalNotifications {
                 Log.info("AUTH FAILED: removing all notifications for group \(group.groupIdentifier)")
                 removeAllPending(withGroup: group.groupIdentifier, completion: { })
                 mainQueueCompletion(result.asSchedulingResult)
+            } else {
+                resolveDelivered(group: group)
+            }
+        }
+    }
+    
+    private static func resolveDelivered(group: LocalNotificationsGroup) {
+        Env.getDeliveredNotifications { (notifications) in
+            let inCategory = notifications
+                .filter { $0.request.identifier.starts(with: group.groupIdentifier + ":") }
+            for notification in inCategory {
+                group.__shouldRemoveDeliveredNotification(notification: notification) { (shouldRemove) in
+                    if shouldRemove {
+                        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notification.request.identifier])
+                    }
+                }
             }
         }
     }
@@ -517,10 +534,14 @@ public protocol LocalNotificationsGroup {
     var preferredExecutionContext: LocalNotificationsGroupContextPreference { get }
     
     func getTimeline(completion: @escaping (NotificationsTimeline) -> ())
+    func __shouldRemoveDeliveredNotification(notification: UNNotification, completion: @escaping (Bool) -> ())
 }
 
 extension LocalNotificationsGroup {
     public var preferredExecutionContext: LocalNotificationsGroupContextPreference { .mainQueueOnly }
+    public func __shouldRemoveDeliveredNotification(notification: UNNotification, completion: @escaping (Bool) -> ()) {
+        completion(false)
+    }
 }
 
 public struct NotificationsTimeline {
