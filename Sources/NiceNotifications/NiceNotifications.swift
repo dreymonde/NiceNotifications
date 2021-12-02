@@ -630,10 +630,8 @@ extension LocalNotifications {
         
         public var nextTriggerDate: Date {
             if let calendarBased = rawTrigger as? UNCalendarNotificationTrigger {
-                assert(!calendarBased.repeats, "repeating triggers are not supported")
                 return calendarBased.nextTriggerDate() ?? .distantFuture
             } else if let timeIntervalBased = rawTrigger as? UNTimeIntervalNotificationTrigger {
-                assert(!timeIntervalBased.repeats, "repeating triggers are not supported")
                 return timeIntervalBased.nextTriggerDate() ?? .distantFuture
             } else {
                 assertionFailure("unsupported trigger, no next trigger date!")
@@ -655,7 +653,7 @@ extension LocalNotifications {
 }
 
 public protocol NotificationsScheduling {
-    static var keyPathForTriggerSet: KeyPath<Self, LocalNotifications.NotificationTriggerSet> { get }
+    static var keyPathForTriggerSet: (Self) -> LocalNotifications.NotificationTriggerSet { get }
 }
 
 extension Array: NotificationsScheduling where Element == DateBuilder.ResolvedDate {
@@ -664,14 +662,14 @@ extension Array: NotificationsScheduling where Element == DateBuilder.ResolvedDa
         return LocalNotifications.NotificationTriggerSet(triggers: all)
     }
     
-    public static var keyPathForTriggerSet: KeyPath<Array<DateBuilder.ResolvedDate>, LocalNotifications.NotificationTriggerSet> {
+    public static var keyPathForTriggerSet: (Self) -> LocalNotifications.NotificationTriggerSet {
         return \.triggerSet
     }
 }
 
 extension NotificationsScheduling {
     func schedule(with maker: NotificationContentMaker) -> LocalNotifications.NotificationRequest {
-        return LocalNotifications.NotificationRequest(triggers: self[keyPath: Self.keyPathForTriggerSet], contentMaker: maker)
+        return LocalNotifications.NotificationRequest(triggers: Self.keyPathForTriggerSet(self), contentMaker: maker)
     }
 }
 
@@ -716,7 +714,7 @@ extension LocalNotifications {
     public struct NotificationTriggerSet: NotificationsScheduling {
         public var triggers: [LocalNotifications.Trigger]
         
-        public static var keyPathForTriggerSet: KeyPath<LocalNotifications.NotificationTriggerSet, LocalNotifications.NotificationTriggerSet> {
+        public static var keyPathForTriggerSet: (Self) -> LocalNotifications.NotificationTriggerSet {
             return \.self
         }
         
@@ -768,7 +766,38 @@ extension DateBuilder.ResolvedDate: NotificationsScheduling {
         }
     }
     
-    public static var keyPathForTriggerSet: KeyPath<DateBuilder.ResolvedDate, LocalNotifications.NotificationTriggerSet> {
+    public static var keyPathForTriggerSet: (Self) -> LocalNotifications.NotificationTriggerSet {
+        return \.triggerSet
+    }
+}
+
+extension LocalNotifications {
+    struct Repeating {
+        var repeatInterval: TimeInterval
+    }
+}
+
+func Repeating(everySeconds seconds: TimeInterval) -> LocalNotifications.Repeating {
+    return LocalNotifications.Repeating(repeatInterval: seconds)
+}
+
+extension LocalNotifications.Repeating: NotificationsScheduling {
+    fileprivate var triggerSet: LocalNotifications.NotificationTriggerSet {
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: repeatInterval, repeats: true)
+        return .single(trigger: .init(rawTrigger: trigger, identifier: .makeRandom()))
+    }
+
+    static var keyPathForTriggerSet: (Self) -> LocalNotifications.NotificationTriggerSet {
+        return \.triggerSet
+    }
+}
+
+extension UNNotificationTrigger: NotificationsScheduling {
+    fileprivate var triggerSet: LocalNotifications.NotificationTriggerSet {
+        return .single(trigger: .init(rawTrigger: self, identifier: .makeRandom()))
+    }
+
+    public static var keyPathForTriggerSet: (UNNotificationTrigger) -> LocalNotifications.NotificationTriggerSet {
         return \.triggerSet
     }
 }

@@ -60,6 +60,7 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
     return true
 }
 
+@available(iOS 13.0, *)
 func readme() {
 
 //let toggle = NotificationsPermissionSwitch(group: DailyQuoteGroup())
@@ -80,6 +81,17 @@ LocalNotifications.schedule(permissionStrategy: .askSystemPermissionIfNeeded) {
         .at(hour: 20, minute: 15)
         .schedule(title: "First Friday", body: "Oakland let's go!")
 }
+
+    LocalNotifications.schedule(permissionStrategy: .askSystemPermissionIfNeeded) {
+        Repeating(everySeconds: 600)
+            .schedule(title: "First Friday", body: "Oakland let's go!")
+    }
+
+    LocalNotifications.schedule(permissionStrategy: .askSystemPermissionIfNeeded) {
+        UNTimeIntervalNotificationTrigger(timeInterval: 600, repeats: true)
+            .schedule(title: "First Friday", body: "Oakland let's go!")
+    }
+
  
 // `NotificationContent` is a subclass of `UNNotificationContent`.
 // You can also use `UNNotificationContent` directly
