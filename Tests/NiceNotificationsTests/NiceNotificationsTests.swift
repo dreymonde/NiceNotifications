@@ -50,6 +50,7 @@ final class DailyQuoteGroup: LocalNotificationsGroup {
     }
 }
 
+#if os(iOS)
 func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
 
     LocalNotifications.reschedule(
@@ -185,3 +186,4 @@ LocalNotifications.requestPermission(strategy: .askSystemPermissionIfNeeded) { s
     }
 }
 }
+#endif

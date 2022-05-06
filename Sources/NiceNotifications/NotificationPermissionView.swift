@@ -5,7 +5,7 @@
 //  Created by Oleg Dreyman on 2/24/21.
 //
 
-#if canImport(UIKit)
+#if os(iOS) || targetEnvironment(macCatalyst)
 import UIKit
 
 public class NotificationsPermissionView<Control: UIView>: UIView {
