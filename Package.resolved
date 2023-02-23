@@ -3,11 +3,11 @@
     "pins": [
       {
         "package": "DateBuilder",
-        "repositoryURL": "https://github.com/nicephoton/DateBuilder",
+        "repositoryURL": "https://github.com/dreymonde/DateBuilder",
         "state": {
           "branch": null,
-          "revision": "3cb1361a7c4c6564b8e6c8e4c2a7767ea8808c8a",
-          "version": "0.1.0"
+          "revision": "19abcf5bcdabf492e15aa018d656b9150bdad409",
+          "version": "0.1.3"
         }
       }
     ]
